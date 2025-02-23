@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Flight Simulator with Airport and Clouds</title>
+    <title>3D Flight Simulator with Textures</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -47,7 +47,7 @@
 
         // Load textures with fallback colors
         Promise.all([
-            loadTexture('/assets/grass.png').then((texture) => {
+            loadTexture('./assets/grass.png').then((texture) => {
                 if (texture) {
                     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
                     texture.repeat.set(10, 10);
@@ -56,14 +56,14 @@
                     return new THREE.MeshLambertMaterial({ color: 0x228B22 }); // Fallback green
                 }
             }),
-            loadTexture('/assets/sun.png').then((texture) => {
+            loadTexture('./assets/sun.png').then((texture) => {
                 if (texture) {
                     return new THREE.MeshBasicMaterial({ map: texture });
                 } else {
                     return new THREE.MeshBasicMaterial({ color: 0xFFFF00 }); // Fallback yellow
                 }
             }),
-            loadTexture('/assets/sea.png').then((texture) => {
+            loadTexture('./assets/sea.png').then((texture) => {
                 if (texture) {
                     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
                     texture.repeat.set(10, 10);
@@ -72,28 +72,26 @@
                     return new THREE.MeshLambertMaterial({ color: 0x0000FF }); // Fallback blue
                 }
             }),
-            loadTexture('/assets/sky.png').then((texture) => {
+            loadTexture('./assets/sky.png').then((texture) => {
                 if (texture) {
-                    return new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide });
+                    return new THREE.MeshBasicMaterial({ map: texture });
                 } else {
-                    return new THREE.MeshBasicMaterial({ color: 0x87CEEB, side: THREE.BackSide }); // Fallback light blue
+                    return new THREE.MeshBasicMaterial({ color: 0x87CEEB }); // Fallback light blue
                 }
             })
         ]).then(([grassMaterial, sunMaterial, seaMaterial, skyMaterial]) => {
-            // Create sky sphere
-            const skyGeometry = new THREE.SphereGeometry(500, 32, 32);
-            const sky = new THREE.Mesh(skyGeometry, skyMaterial);
-            scene.add(sky);
+            // Set background to sky texture or fallback color
+            scene.background = skyMaterial.color || new THREE.Color(0x87CEEB);
 
-            // Create sun sphere
-            const sunGeometry = new THREE.SphereGeometry(10, 32, 32);
+            // Create the sun (higher and 3x larger)
+            const sunGeometry = new THREE.SphereGeometry(30, 32, 32); // 3x previous size (10 -> 30)
             const sun = new THREE.Mesh(sunGeometry, sunMaterial);
-            sun.position.set(100, 100, 100);
+            sun.position.set(0, 200, -200); // Higher position (150 -> 200)
             scene.add(sun);
 
-            // Add directional light (sunlight) for shadows
+            // Add directional light from the sun's position
             const sunLight = new THREE.DirectionalLight(0xffffff, 1);
-            sunLight.position.set(100, 100, 100);
+            sunLight.position.copy(sun.position); // Light emits from the sun
             sunLight.castShadow = true;
             sunLight.shadow.mapSize.width = 2048;
             sunLight.shadow.mapSize.height = 2048;
@@ -108,7 +106,7 @@
             // Add ambient light for visibility
             scene.add(new THREE.AmbientLight(0x404040));
 
-            // Create ground with grass texture or fallback
+            // Create the ground with grass texture or fallback
             const groundSize = 1000;
             const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
             const ground = new THREE.Mesh(groundGeometry, grassMaterial);
@@ -116,7 +114,7 @@
             ground.receiveShadow = true;
             scene.add(ground);
 
-            // Create ocean with sea texture or fallback
+            // Create the ocean with sea texture or fallback
             const oceanSize = 2000;
             const oceanGeometry = new THREE.PlaneGeometry(oceanSize, oceanSize);
             const ocean = new THREE.Mesh(oceanGeometry, seaMaterial);
@@ -133,15 +131,16 @@
             runway.receiveShadow = true;
             scene.add(runway);
 
-            // Define exclusion zone for runway (clear of buildings and vehicles)
-            const exclusionZone = { minX: -10, maxX: 10, minZ: -110, maxZ: 110 };
+            // Define exclusion zones with wider buffer around runway
+            const runwayExclusionZone = { minX: -50, maxX: 50, minZ: -150, maxZ: 150 };
+            const streetWidth = 10;
+            const streets = [];
+            const roadExclusions = [];
 
             // Create roads outside the runway area
-            const streetWidth = 10;
             const streetMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 });
-            const streets = [];
             for (let i = -groundSize / 2; i <= groundSize / 2; i += 50) {
-                if (i < exclusionZone.minZ || i > exclusionZone.maxZ) {
+                if (i < runwayExclusionZone.minZ || i > runwayExclusionZone.maxZ) {
                     // Horizontal streets
                     const streetH = new THREE.Mesh(new THREE.PlaneGeometry(groundSize, streetWidth), streetMaterial);
                     streetH.rotation.x = -Math.PI / 2;
@@ -149,8 +148,9 @@
                     streetH.receiveShadow = true;
                     scene.add(streetH);
                     streets.push({ type: 'horizontal', z: i });
+                    roadExclusions.push({ minX: -groundSize / 2, maxX: groundSize / 2, minZ: i - streetWidth / 2, maxZ: i + streetWidth / 2 });
                 }
-                if (Math.abs(i) > 10) { // Avoid vertical streets intersecting runway
+                if (Math.abs(i) > 50) { // Avoid vertical streets intersecting expanded runway zone
                     // Vertical streets
                     const streetV = new THREE.Mesh(new THREE.PlaneGeometry(streetWidth, groundSize), streetMaterial);
                     streetV.rotation.x = -Math.PI / 2;
@@ -158,13 +158,14 @@
                     streetV.receiveShadow = true;
                     scene.add(streetV);
                     streets.push({ type: 'vertical', x: i });
+                    roadExclusions.push({ minX: i - streetWidth / 2, maxX: i + streetWidth / 2, minZ: -groundSize / 2, maxZ: groundSize / 2 });
                 }
             }
 
             // Add road markings (center lines)
             const lineMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
             for (let i = -groundSize / 2; i <= groundSize / 2; i += 50) {
-                if (i < exclusionZone.minZ || i > exclusionZone.maxZ) {
+                if (i < runwayExclusionZone.minZ || i > runwayExclusionZone.maxZ) {
                     // Horizontal street center lines
                     for (let j = -groundSize / 2; j < groundSize / 2; j += 10) {
                         const line = new THREE.Mesh(new THREE.PlaneGeometry(5, 0.5), lineMaterial);
@@ -173,7 +174,7 @@
                         scene.add(line);
                     }
                 }
-                if (Math.abs(i) > 10) {
+                if (Math.abs(i) > 50) {
                     // Vertical street center lines
                     for (let j = -groundSize / 2; j < groundSize / 2; j += 10) {
                         const line = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 5), lineMaterial);
@@ -184,19 +185,36 @@
                 }
             }
 
-            // Generate 200 random buildings outside the runway area
+            // Generate random buildings outside the runway and road areas with wider buffer
             const buildings = [];
             for (let i = 0; i < 200; i++) {
                 let x, z;
+                let overlap;
                 do {
+                    overlap = false;
                     x = (Math.random() - 0.5) * groundSize;
                     z = (Math.random() - 0.5) * groundSize;
-                } while (x > exclusionZone.minX && x < exclusionZone.maxX && z > exclusionZone.minZ && z < exclusionZone.maxZ);
+                    const width = Math.random() * 10 + 5;
+                    const depth = Math.random() * 10 + 5;
+                    const buildingZone = { minX: x - width / 2, maxX: x + width / 2, minZ: z - depth / 2, maxZ: z + depth / 2 };
+
+                    // Check expanded runway exclusion
+                    if (x > runwayExclusionZone.minX && x < runwayExclusionZone.maxX && z > runwayExclusionZone.minZ && z < runwayExclusionZone.maxZ) {
+                        overlap = true;
+                        continue;
+                    }
+
+                    // Check road exclusions
+                    for (const road of roadExclusions) {
+                        if (buildingZone.maxX > road.minX && buildingZone.minX < road.maxX && buildingZone.maxZ > road.minZ && buildingZone.minZ < road.maxZ) {
+                            overlap = true;
+                            break;
+                        }
+                    }
+                } while (overlap);
 
                 const height = Math.random() * 20 + 10;
-                const width = Math.random() * 10 + 5;
-                const depth = Math.random() * 10 + 5;
-                const geometry = new THREE.BoxGeometry(width, height, depth);
+                const geometry = new THREE.BoxGeometry(Math.random() * 10 + 5, height, Math.random() * 10 + 5);
                 const material = new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff });
                 const building = new THREE.Mesh(geometry, material);
                 building.position.set(x, height / 2, z);
@@ -206,24 +224,54 @@
                 buildings.push(building);
             }
 
-            // Generate moving 3D clouds
+            // Add moving vehicles on roads
+            const vehicles = [];
+            for (let i = 0; i < 20; i++) {
+                const vehicle = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 1), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
+                const startStreet = streets[Math.floor(Math.random() * streets.length)];
+                vehicle.position.y = 0.5;
+                vehicle.castShadow = true;
+                if (startStreet.type === 'horizontal') {
+                    vehicle.position.z = startStreet.z + (Math.random() > 0.5 ? 2 : -2);
+                    vehicle.position.x = (Math.random() - 0.5) * groundSize;
+                    vehicle.direction = Math.random() > 0.5 ? 'east' : 'west';
+                    vehicle.rotation.y = Math.PI / 2;
+                } else {
+                    vehicle.position.x = startStreet.x + (Math.random() > 0.5 ? 2 : -2);
+                    vehicle.position.z = (Math.random() - 0.5) * groundSize;
+                    vehicle.direction = Math.random() > 0.5 ? 'north' : 'south';
+                    vehicle.rotation.y = 0;
+                }
+                scene.add(vehicle);
+                vehicles.push(vehicle);
+            }
+
+            // Generate Minecraft-style clouds (higher and slightly bigger)
             const clouds = [];
-            for (let i = 0; i < 50; i++) {
-                const cloudGeometry = new THREE.SphereGeometry(Math.random() * 5 + 2, 16, 16);
-                const cloudMaterial = new THREE.MeshLambertMaterial({
-                    color: 0xffffff, // White clouds
-                    transparent: true,
-                    opacity: 0.8 // Semi-transparent
+            const cloudPatterns = [
+                { offsets: [[0, 0], [1, 0], [0, 1]], size: 6 }, // L-shape
+                { offsets: [[0, 0], [0, 1], [0, 2]], size: 6 }, // Straight line
+                { offsets: [[0, 0], [1, 0], [1, 1], [0, 1]], size: 6 }, // Square
+                { offsets: [[0, 0], [1, 0], [2, 0], [1, 1]], size: 6 }  // T-shape
+            ];
+            for (let i = 0; i < 20; i++) {
+                const pattern = cloudPatterns[Math.floor(Math.random() * cloudPatterns.length)];
+                const cloudGroup = new THREE.Group();
+                pattern.offsets.forEach(offset => {
+                    const cloudGeometry = new THREE.BoxGeometry(pattern.size, pattern.size, pattern.size);
+                    const cloudMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+                    const cloud = new THREE.Mesh(cloudGeometry, cloudMaterial);
+                    cloud.position.set(offset[0] * pattern.size, 0, offset[1] * pattern.size);
+                    cloud.castShadow = true;
+                    cloudGroup.add(cloud);
                 });
-                const cloud = new THREE.Mesh(cloudGeometry, cloudMaterial);
-                cloud.position.set(
+                cloudGroup.position.set(
                     (Math.random() - 0.5) * 500,
-                    50 + Math.random() * 10, // Altitude between 50 and 60
+                    80 + Math.random() * 10, // Higher clouds (80-90 units)
                     (Math.random() - 0.5) * 500
                 );
-                cloud.castShadow = true;
-                scene.add(cloud);
-                clouds.push(cloud);
+                scene.add(cloudGroup);
+                clouds.push(cloudGroup);
             }
 
             // Create the airplane
@@ -233,7 +281,7 @@
             const fuselageGeometry = new THREE.CylinderGeometry(0.5, 0.5, 10, 32);
             const fuselageMaterial = new THREE.MeshLambertMaterial({ color: 0xC0C0C0 });
             const fuselage = new THREE.Mesh(fuselageGeometry, fuselageMaterial);
-            fuselage.rotation.x = Math.PI / 2;
+            fuselage.rotation.x = Math.PI / 2; // Orient along z-axis
             fuselage.castShadow = true;
             planeGroup.add(fuselage);
 
@@ -288,8 +336,9 @@
             rightGear.position.set(1.5, -0.5, 0);
             planeGroup.add(rightGear);
 
-            // Position the plane on the runway
+            // Position the plane on the runway, facing negative z-direction
             planeGroup.position.set(0, 0.5, -90); // Start at one end of the runway
+            planeGroup.rotation.y = Math.PI; // Facing negative z (180 degrees)
             scene.add(planeGroup);
 
             // Flight mechanics constants
@@ -298,7 +347,7 @@
             const pitchRate = 0.01;
             const yawRate = 0.01;
             let pitch = 0;
-            let yaw = 0;
+            let yaw = Math.PI; // Initial yaw set to 180 degrees
             const keys = {};
             let gameOver = false;
 
@@ -336,6 +385,60 @@
                 }
             }
 
+            // Update vehicles function (fixed to drive around correctly)
+            function updateVehicles() {
+                vehicles.forEach(vehicle => {
+                    const vehicleSpeed = 0.2;
+
+                    // Move vehicle based on direction
+                    if (vehicle.direction === 'east') vehicle.position.x += vehicleSpeed;
+                    else if (vehicle.direction === 'west') vehicle.position.x -= vehicleSpeed;
+                    else if (vehicle.direction === 'north') vehicle.position.z += vehicleSpeed;
+                    else if (vehicle.direction === 'south') vehicle.position.z -= vehicleSpeed;
+
+                    // Check if vehicle is near an intersection and decide to turn
+                    const nearestX = Math.round(vehicle.position.x / 50) * 50;
+                    const nearestZ = Math.round(vehicle.position.z / 50) * 50;
+                    const atIntersectionX = Math.abs(vehicle.position.x - nearestX) < 5;
+                    const atIntersectionZ = Math.abs(vehicle.position.z - nearestZ) < 5;
+
+                    if ((vehicle.direction === 'east' || vehicle.direction === 'west') && atIntersectionX) {
+                        if (Math.random() < 0.1) { // 10% chance to turn
+                            const newDirection = Math.random() < 0.5 ? 'north' : 'south';
+                            vehicle.direction = newDirection;
+                            vehicle.rotation.y = 0; // Face along z-axis
+                            vehicle.position.x = nearestX + (newDirection === 'north' ? 2 : -2);
+                        }
+                    } else if ((vehicle.direction === 'north' || vehicle.direction === 'south') && atIntersectionZ) {
+                        if (Math.random() < 0.1) { // 10% chance to turn
+                            const newDirection = Math.random() < 0.5 ? 'east' : 'west';
+                            vehicle.direction = newDirection;
+                            vehicle.rotation.y = Math.PI / 2; // Face along x-axis
+                            vehicle.position.z = nearestZ + (newDirection === 'east' ? 2 : -2);
+                        }
+                    }
+
+                    // Keep vehicles within bounds and wrap around
+                    if (vehicle.position.x > groundSize / 2) vehicle.position.x = -groundSize / 2;
+                    if (vehicle.position.x < -groundSize / 2) vehicle.position.x = groundSize / 2;
+                    if (vehicle.position.z > groundSize / 2) vehicle.position.z = -groundSize / 2;
+                    if (vehicle.position.z < -groundSize / 2) vehicle.position.z = groundSize / 2;
+
+                    // Ensure vehicles stay on roads
+                    if (vehicle.direction === 'east' || vehicle.direction === 'west') {
+                        const nearestStreetZ = Math.round(vehicle.position.z / 50) * 50;
+                        if (Math.abs(vehicle.position.z - nearestStreetZ) > streetWidth / 2) {
+                            vehicle.position.z = nearestStreetZ + (vehicle.position.z > nearestStreetZ ? 2 : -2);
+                        }
+                    } else {
+                        const nearestStreetX = Math.round(vehicle.position.x / 50) * 50;
+                        if (Math.abs(vehicle.position.x - nearestStreetX) > streetWidth / 2) {
+                            vehicle.position.x = nearestStreetX + (vehicle.position.x > nearestStreetX ? 2 : -2);
+                        }
+                    }
+                });
+            }
+
             // Update clouds function
             function updateClouds() {
                 clouds.forEach(cloud => {
@@ -359,9 +462,10 @@
 
             // Reset game function
             function resetGame() {
-                planeGroup.position.set(0, 0.5, -90);
+                planeGroup.position.set(0, 0.5, -90); // Back to runway start
                 pitch = 0;
-                yaw = 0;
+                yaw = Math.PI; // Reset yaw to 180 degrees (facing negative z)
+                planeGroup.rotation.y = Math.PI; // Ensure plane faces negative z
                 gameOver = false;
                 document.body.removeChild(document.querySelector('div'));
             }
@@ -370,6 +474,7 @@
             function animate() {
                 requestAnimationFrame(animate);
                 updatePlane();
+                updateVehicles();
                 updateClouds();
                 camera.position.copy(planeGroup.position)
                     .add(new THREE.Vector3(0, 0, -1).applyQuaternion(planeGroup.quaternion).multiplyScalar(-10))
