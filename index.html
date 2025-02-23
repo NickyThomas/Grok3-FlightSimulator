@@ -204,6 +204,23 @@
                 buildings.push(building);
             }
 
+            // Add directional light (sunlight)
+            const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+            sunLight.position.set(100, 100, 100);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 0.5;
+            sunLight.shadow.camera.far = 500;
+            sunLight.shadow.camera.left = -100;
+            sunLight.shadow.camera.right = 100;
+            sunLight.shadow.camera.top = 100;
+            sunLight.shadow.camera.bottom = -100;
+            scene.add(sunLight);
+
+            // Add ambient light to ensure visibility
+            scene.add(new THREE.AmbientLight(0x404040));
+
             // Flight mechanics constants
             const speed = 1;
             const g = -0.02;
