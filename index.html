@@ -3,13 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Flight Simulator with Textures</title>
+    <title>3D Flight Simulator with Enhanced Physics</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
+        #score {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 24px;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-shadow: 2px 2px 4px black;
+        }
+        #speed {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            font-size: 24px;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-shadow: 2px 2px 4px black;
+        }
+        #startMessage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-shadow: 2px 2px 4px black;
+        }
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: red;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            text-shadow: 2px 2px 4px black;
+        }
     </style>
 </head>
 <body>
+    <div id="score">Score: 0</div>
+    <div id="speed">Speed: 0 blocks/s</div>
+    <div id="startMessage">Press Spacebar to take-off</div>
     <!-- Include Three.js library via CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
@@ -19,7 +61,7 @@
             75, // Field of view
             window.innerWidth / window.innerHeight, // Aspect ratio
             0.1, // Near clipping plane
-            1000 // Far clipping plane
+            2000 // Increased far clipping plane for higher sun and clouds
         );
         const renderer = new THREE.WebGLRenderer();
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -45,7 +87,7 @@
             });
         };
 
-        // Load textures with fallback colors
+        // Load textures with updated path ./assets/
         Promise.all([
             loadTexture('./assets/grass.png').then((texture) => {
                 if (texture) {
@@ -56,7 +98,7 @@
                     return new THREE.MeshLambertMaterial({ color: 0x228B22 }); // Fallback green
                 }
             }),
-            loadTexture('./assets/sun.png').then((texture) => {
+            loadTexture('./assets/sun.jpg').then((texture) => {
                 if (texture) {
                     return new THREE.MeshBasicMaterial({ map: texture });
                 } else {
@@ -83,24 +125,24 @@
             // Set background to sky texture or fallback color
             scene.background = skyMaterial.color || new THREE.Color(0x87CEEB);
 
-            // Create the sun (higher and 3x larger)
-            const sunGeometry = new THREE.SphereGeometry(30, 32, 32); // 3x previous size (10 -> 30)
+            // Create the sun
+            const sunGeometry = new THREE.SphereGeometry(120, 32, 32);
             const sun = new THREE.Mesh(sunGeometry, sunMaterial);
-            sun.position.set(0, 200, -200); // Higher position (150 -> 200)
+            sun.position.set(0, 800, -200);
             scene.add(sun);
 
             // Add directional light from the sun's position
             const sunLight = new THREE.DirectionalLight(0xffffff, 1);
-            sunLight.position.copy(sun.position); // Light emits from the sun
+            sunLight.position.copy(sun.position);
             sunLight.castShadow = true;
             sunLight.shadow.mapSize.width = 2048;
             sunLight.shadow.mapSize.height = 2048;
             sunLight.shadow.camera.near = 0.5;
-            sunLight.shadow.camera.far = 500;
-            sunLight.shadow.camera.left = -100;
-            sunLight.shadow.camera.right = 100;
-            sunLight.shadow.camera.top = 100;
-            sunLight.shadow.camera.bottom = -100;
+            sunLight.shadow.camera.far = 1000;
+            sunLight.shadow.camera.left = -200;
+            sunLight.shadow.camera.right = 200;
+            sunLight.shadow.camera.top = 200;
+            sunLight.shadow.camera.bottom = -200;
             scene.add(sunLight);
 
             // Add ambient light for visibility
@@ -123,7 +165,7 @@
             scene.add(ocean);
 
             // Create the airport runway
-            const runwayGeometry = new THREE.PlaneGeometry(20, 200); // 20 wide, 200 long
+            const runwayGeometry = new THREE.PlaneGeometry(20, 200);
             const runwayMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 });
             const runway = new THREE.Mesh(runwayGeometry, runwayMaterial);
             runway.rotation.x = -Math.PI / 2;
@@ -141,7 +183,6 @@
             const streetMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 });
             for (let i = -groundSize / 2; i <= groundSize / 2; i += 50) {
                 if (i < runwayExclusionZone.minZ || i > runwayExclusionZone.maxZ) {
-                    // Horizontal streets
                     const streetH = new THREE.Mesh(new THREE.PlaneGeometry(groundSize, streetWidth), streetMaterial);
                     streetH.rotation.x = -Math.PI / 2;
                     streetH.position.set(0, 0.01, i);
@@ -150,8 +191,7 @@
                     streets.push({ type: 'horizontal', z: i });
                     roadExclusions.push({ minX: -groundSize / 2, maxX: groundSize / 2, minZ: i - streetWidth / 2, maxZ: i + streetWidth / 2 });
                 }
-                if (Math.abs(i) > 50) { // Avoid vertical streets intersecting expanded runway zone
-                    // Vertical streets
+                if (Math.abs(i) > 50) {
                     const streetV = new THREE.Mesh(new THREE.PlaneGeometry(streetWidth, groundSize), streetMaterial);
                     streetV.rotation.x = -Math.PI / 2;
                     streetV.position.set(i, 0.01, 0);
@@ -166,7 +206,6 @@
             const lineMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
             for (let i = -groundSize / 2; i <= groundSize / 2; i += 50) {
                 if (i < runwayExclusionZone.minZ || i > runwayExclusionZone.maxZ) {
-                    // Horizontal street center lines
                     for (let j = -groundSize / 2; j < groundSize / 2; j += 10) {
                         const line = new THREE.Mesh(new THREE.PlaneGeometry(5, 0.5), lineMaterial);
                         line.rotation.x = -Math.PI / 2;
@@ -175,7 +214,6 @@
                     }
                 }
                 if (Math.abs(i) > 50) {
-                    // Vertical street center lines
                     for (let j = -groundSize / 2; j < groundSize / 2; j += 10) {
                         const line = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 5), lineMaterial);
                         line.rotation.x = -Math.PI / 2;
@@ -185,9 +223,9 @@
                 }
             }
 
-            // Generate random buildings outside the runway and road areas with wider buffer
+            // Generate random buildings outside the runway and road areas
             const buildings = [];
-            for (let i = 0; i < 200; i++) {
+            for (let i = 0; i < 300; i++) {
                 let x, z;
                 let overlap;
                 do {
@@ -198,13 +236,11 @@
                     const depth = Math.random() * 10 + 5;
                     const buildingZone = { minX: x - width / 2, maxX: x + width / 2, minZ: z - depth / 2, maxZ: z + depth / 2 };
 
-                    // Check expanded runway exclusion
                     if (x > runwayExclusionZone.minX && x < runwayExclusionZone.maxX && z > runwayExclusionZone.minZ && z < runwayExclusionZone.maxZ) {
                         overlap = true;
                         continue;
                     }
 
-                    // Check road exclusions
                     for (const road of roadExclusions) {
                         if (buildingZone.maxX > road.minX && buildingZone.minX < road.maxX && buildingZone.maxZ > road.minZ && buildingZone.minZ < road.maxZ) {
                             overlap = true;
@@ -246,15 +282,46 @@
                 vehicles.push(vehicle);
             }
 
-            // Generate Minecraft-style clouds (higher and slightly bigger)
+            // Add larger blocky boats and ships in the ocean
+            const boats = [];
+            for (let i = 0; i < 10; i++) {
+                const boatGroup = new THREE.Group();
+                const hullGeometry = new THREE.BoxGeometry(10, 2, 20);
+                const hullMaterial = new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff });
+                const hull = new THREE.Mesh(hullGeometry, hullMaterial);
+                hull.position.set(0, 1, 0);
+                hull.castShadow = true;
+                boatGroup.add(hull);
+
+                const cabinGeometry = new THREE.BoxGeometry(6, 3, 6);
+                const cabinMaterial = new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff });
+                const cabin = new THREE.Mesh(cabinGeometry, cabinMaterial);
+                cabin.position.set(0, 2.5, -5);
+                cabin.castShadow = true;
+                boatGroup.add(cabin);
+
+                let x, z;
+                do {
+                    x = (Math.random() - 0.5) * oceanSize;
+                    z = (Math.random() - 0.5) * oceanSize;
+                } while (Math.abs(x) < groundSize / 2 && Math.abs(z) < groundSize / 2);
+                boatGroup.position.set(x, 0, z);
+                boatGroup.direction = Math.random() > 0.5 ? 'x' : 'z';
+                boatGroup.speed = Math.random() * 0.1 + 0.05;
+                boatGroup.rotation.y = boatGroup.direction === 'x' ? Math.PI / 2 : 0;
+                scene.add(boatGroup);
+                boats.push(boatGroup);
+            }
+
+            // Generate Minecraft-style clouds
             const clouds = [];
             const cloudPatterns = [
-                { offsets: [[0, 0], [1, 0], [0, 1]], size: 6 }, // L-shape
-                { offsets: [[0, 0], [0, 1], [0, 2]], size: 6 }, // Straight line
-                { offsets: [[0, 0], [1, 0], [1, 1], [0, 1]], size: 6 }, // Square
-                { offsets: [[0, 0], [1, 0], [2, 0], [1, 1]], size: 6 }  // T-shape
+                { offsets: [[0, 0], [1, 0], [0, 1]], size: 6 },
+                { offsets: [[0, 0], [0, 1], [0, 2]], size: 6 },
+                { offsets: [[0, 0], [1, 0], [1, 1], [0, 1]], size: 6 },
+                { offsets: [[0, 0], [1, 0], [2, 0], [1, 1]], size: 6 }
             ];
-            for (let i = 0; i < 20; i++) {
+            for (let i = 0; i < 50; i++) {
                 const pattern = cloudPatterns[Math.floor(Math.random() * cloudPatterns.length)];
                 const cloudGroup = new THREE.Group();
                 pattern.offsets.forEach(offset => {
@@ -267,7 +334,7 @@
                 });
                 cloudGroup.position.set(
                     (Math.random() - 0.5) * 500,
-                    80 + Math.random() * 10, // Higher clouds (80-90 units)
+                    160 + Math.random() * 20,
                     (Math.random() - 0.5) * 500
                 );
                 scene.add(cloudGroup);
@@ -277,15 +344,13 @@
             // Create the airplane
             const planeGroup = new THREE.Group();
 
-            // Fuselage
             const fuselageGeometry = new THREE.CylinderGeometry(0.5, 0.5, 10, 32);
             const fuselageMaterial = new THREE.MeshLambertMaterial({ color: 0xC0C0C0 });
             const fuselage = new THREE.Mesh(fuselageGeometry, fuselageMaterial);
-            fuselage.rotation.x = Math.PI / 2; // Orient along z-axis
+            fuselage.rotation.x = Math.PI / 2;
             fuselage.castShadow = true;
             planeGroup.add(fuselage);
 
-            // Wings
             const wingGeometry = new THREE.BoxGeometry(15, 0.5, 2);
             const wingMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
             const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
@@ -297,14 +362,12 @@
             rightWing.castShadow = true;
             planeGroup.add(rightWing);
 
-            // Tail
             const tailGeometry = new THREE.BoxGeometry(3, 0.5, 1);
             const tail = new THREE.Mesh(tailGeometry, wingMaterial);
             tail.position.set(0, 0, 5);
             tail.castShadow = true;
             planeGroup.add(tail);
 
-            // Engines
             const engineGeometry = new THREE.CylinderGeometry(0.3, 0.3, 1, 32);
             const engineMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 });
             const leftEngine = new THREE.Mesh(engineGeometry, engineMaterial);
@@ -316,14 +379,12 @@
             rightEngine.rotation.x = Math.PI / 2;
             planeGroup.add(rightEngine);
 
-            // Cockpit
             const cockpitGeometry = new THREE.SphereGeometry(0.5, 32, 32);
             const cockpitMaterial = new THREE.MeshLambertMaterial({ color: 0x0000FF });
             const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
             cockpit.position.set(0, 0, -5);
             planeGroup.add(cockpit);
 
-            // Landing Gear
             const gearGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
             const gearMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
             const frontGear = new THREE.Mesh(gearGeometry, gearMaterial);
@@ -337,42 +398,86 @@
             planeGroup.add(rightGear);
 
             // Position the plane on the runway, facing negative z-direction
-            planeGroup.position.set(0, 0.5, -90); // Start at one end of the runway
-            planeGroup.rotation.y = Math.PI; // Facing negative z (180 degrees)
+            planeGroup.position.set(0, 0.5, -90);
+            planeGroup.rotation.y = Math.PI;
             scene.add(planeGroup);
 
             // Flight mechanics constants
-            const speed = 1;
+            const baseSpeed = 1;
             const g = -0.02;
             const pitchRate = 0.01;
             const yawRate = 0.01;
             let pitch = 0;
-            let yaw = Math.PI; // Initial yaw set to 180 degrees
+            let yaw = Math.PI;
+            let engineOn = false;
+            let velocity = new THREE.Vector3(0, 0, 0);
             const keys = {};
             let gameOver = false;
+            let score = 0;
+            let lastTime = performance.now();
+            let hasStarted = false;
+
+            // UI elements
+            const scoreElement = document.getElementById('score');
+            const speedElement = document.getElementById('speed');
+            const startMessageElement = document.getElementById('startMessage');
 
             // Keyboard event listeners
             window.addEventListener('keydown', (e) => {
                 if (gameOver && e.key === ' ') resetGame();
-                else keys[e.key] = true;
+                else if (e.key === ' ' && !gameOver) {
+                    engineOn = !engineOn;
+                    if (!hasStarted && engineOn) {
+                        hasStarted = true;
+                        startMessageElement.style.display = 'none';
+                    }
+                } else {
+                    keys[e.key] = true;
+                }
             });
             window.addEventListener('keyup', (e) => keys[e.key] = false);
 
-            // Update plane function
+            // Update plane function with enhanced physics
             function updatePlane() {
                 if (gameOver) return;
-                if (keys['ArrowUp']) pitch += pitchRate;
-                if (keys['ArrowDown']) pitch -= pitchRate;
+
+                // Control pitch and yaw
+                if (keys['ArrowUp'] && engineOn) pitch += pitchRate; // Ascend only with engine on
+                if (keys['ArrowDown']) pitch -= pitchRate; // Allow pitching down always
                 if (keys['ArrowLeft']) yaw += yawRate;
                 if (keys['ArrowRight']) yaw -= yawRate;
                 pitch = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, pitch));
                 planeGroup.rotation.x = pitch;
                 planeGroup.rotation.y = yaw;
+
                 const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(planeGroup.quaternion);
-                const vel = forward.clone().multiplyScalar(speed);
-                vel.y += g;
-                planeGroup.position.add(vel);
-                if (planeGroup.position.y < 0.5) planeGroup.position.y = 0.5;
+                let currentSpeed = baseSpeed;
+
+                // Adjust speed based on altitude
+                const altitude = planeGroup.position.y;
+                const maxAltitude = 180; // Near cloud height
+                if (altitude > 0.5) {
+                    const speedFactor = 1 - (altitude / maxAltitude) * 0.5; // Decrease speed up to 50% at max altitude
+                    currentSpeed = baseSpeed * Math.max(speedFactor, 0.5); // Minimum 50% speed
+                    if (velocity.y < 0) currentSpeed += Math.abs(velocity.y) * 0.5; // Increase speed when falling
+                }
+
+                if (engineOn) {
+                    velocity = forward.clone().multiplyScalar(currentSpeed);
+                    velocity.y += g;
+                } else {
+                    // Engine off: Glide with physics
+                    velocity.y += g; // Gravity affects descent
+                    velocity.multiplyScalar(0.98); // Air resistance slows horizontal motion
+                    if (planeGroup.position.y <= 0.5) velocity.set(0, 0, 0); // Stop on ground
+                }
+
+                planeGroup.position.add(velocity);
+
+                if (planeGroup.position.y < 0.5) {
+                    planeGroup.position.y = 0.5;
+                    velocity.y = 0;
+                }
 
                 const planeBoundingBox = new THREE.Box3().setFromObject(planeGroup);
                 for (const building of buildings) {
@@ -383,48 +488,47 @@
                         break;
                     }
                 }
+
+                // Update speed display (magnitude of velocity in blocks/s)
+                const speedValue = velocity.length();
+                speedElement.innerText = `Speed: ${speedValue.toFixed(2)} blocks/s`;
             }
 
-            // Update vehicles function (fixed to drive around correctly)
+            // Update vehicles function
             function updateVehicles() {
                 vehicles.forEach(vehicle => {
                     const vehicleSpeed = 0.2;
-
-                    // Move vehicle based on direction
                     if (vehicle.direction === 'east') vehicle.position.x += vehicleSpeed;
                     else if (vehicle.direction === 'west') vehicle.position.x -= vehicleSpeed;
                     else if (vehicle.direction === 'north') vehicle.position.z += vehicleSpeed;
                     else if (vehicle.direction === 'south') vehicle.position.z -= vehicleSpeed;
 
-                    // Check if vehicle is near an intersection and decide to turn
                     const nearestX = Math.round(vehicle.position.x / 50) * 50;
                     const nearestZ = Math.round(vehicle.position.z / 50) * 50;
                     const atIntersectionX = Math.abs(vehicle.position.x - nearestX) < 5;
                     const atIntersectionZ = Math.abs(vehicle.position.z - nearestZ) < 5;
 
                     if ((vehicle.direction === 'east' || vehicle.direction === 'west') && atIntersectionX) {
-                        if (Math.random() < 0.1) { // 10% chance to turn
+                        if (Math.random() < 0.1) {
                             const newDirection = Math.random() < 0.5 ? 'north' : 'south';
                             vehicle.direction = newDirection;
-                            vehicle.rotation.y = 0; // Face along z-axis
+                            vehicle.rotation.y = 0;
                             vehicle.position.x = nearestX + (newDirection === 'north' ? 2 : -2);
                         }
                     } else if ((vehicle.direction === 'north' || vehicle.direction === 'south') && atIntersectionZ) {
-                        if (Math.random() < 0.1) { // 10% chance to turn
+                        if (Math.random() < 0.1) {
                             const newDirection = Math.random() < 0.5 ? 'east' : 'west';
                             vehicle.direction = newDirection;
-                            vehicle.rotation.y = Math.PI / 2; // Face along x-axis
+                            vehicle.rotation.y = Math.PI / 2;
                             vehicle.position.z = nearestZ + (newDirection === 'east' ? 2 : -2);
                         }
                     }
 
-                    // Keep vehicles within bounds and wrap around
                     if (vehicle.position.x > groundSize / 2) vehicle.position.x = -groundSize / 2;
                     if (vehicle.position.x < -groundSize / 2) vehicle.position.x = groundSize / 2;
                     if (vehicle.position.z > groundSize / 2) vehicle.position.z = -groundSize / 2;
                     if (vehicle.position.z < -groundSize / 2) vehicle.position.z = groundSize / 2;
 
-                    // Ensure vehicles stay on roads
                     if (vehicle.direction === 'east' || vehicle.direction === 'west') {
                         const nearestStreetZ = Math.round(vehicle.position.z / 50) * 50;
                         if (Math.abs(vehicle.position.z - nearestStreetZ) > streetWidth / 2) {
@@ -439,42 +543,85 @@
                 });
             }
 
-            // Update clouds function
-            function updateClouds() {
-                clouds.forEach(cloud => {
-                    cloud.position.x += 0.1; // Move clouds to the right
-                    if (cloud.position.x > 250) cloud.position.x = -250; // Loop back
+            // Update boats function
+            function updateBoats() {
+                boats.forEach(boat => {
+                    const prevX = boat.position.x;
+                    const prevZ = boat.position.z;
+
+                    if (boat.direction === 'x') {
+                        boat.position.x += boat.speed * (Math.random() > 0.5 ? 1 : -1);
+                    } else {
+                        boat.position.z += boat.speed * (Math.random() > 0.5 ? 1 : -1);
+                    }
+
+                    const inGroundArea = Math.abs(boat.position.x) < groundSize / 2 && Math.abs(boat.position.z) < groundSize / 2;
+                    if (inGroundArea) {
+                        boat.position.x = prevX;
+                        boat.position.z = prevZ;
+                        boat.direction = boat.direction === 'x' ? 'z' : 'x';
+                        boat.rotation.y = boat.direction === 'x' ? Math.PI / 2 : 0;
+                    }
+
+                    if (boat.position.x > oceanSize / 2) boat.position.x = -oceanSize / 2;
+                    if (boat.position.x < -oceanSize / 2) boat.position.x = oceanSize / 2;
+                    if (boat.position.z > oceanSize / 2) boat.position.z = -oceanSize / 2;
+                    if (boat.position.z < -oceanSize / 2) boat.position.z = oceanSize / 2;
+
+                    if (Math.random() < 0.05) {
+                        boat.direction = boat.direction === 'x' ? 'z' : 'x';
+                        boat.rotation.y = boat.direction === 'x' ? Math.PI / 2 : 0;
+                    }
                 });
             }
 
-            // Display game over screen
+            // Update clouds function
+            function updateClouds() {
+                clouds.forEach(cloud => {
+                    cloud.position.x += 0.1;
+                    if (cloud.position.x > 250) cloud.position.x = -250;
+                });
+            }
+
+            // Display game over screen with final score
             function displayGameOver() {
                 const gameOverText = document.createElement('div');
-                gameOverText.style.position = 'absolute';
-                gameOverText.style.top = '50%';
-                gameOverText.style.left = '50%';
-                gameOverText.style.transform = 'translate(-50%, -50%)';
-                gameOverText.style.fontSize = '48px';
-                gameOverText.style.color = 'red';
-                gameOverText.innerText = 'You have crashed!\nPress Spacebar to start again.';
+                gameOverText.id = 'gameOver';
+                gameOverText.innerText = `You have crashed!\nFinal Score: ${Math.floor(score)}\nPress Spacebar to start again.`;
                 document.body.appendChild(gameOverText);
             }
 
             // Reset game function
             function resetGame() {
-                planeGroup.position.set(0, 0.5, -90); // Back to runway start
+                planeGroup.position.set(0, 0.5, -90);
                 pitch = 0;
-                yaw = Math.PI; // Reset yaw to 180 degrees (facing negative z)
-                planeGroup.rotation.y = Math.PI; // Ensure plane faces negative z
+                yaw = Math.PI;
+                planeGroup.rotation.y = Math.PI;
+                velocity.set(0, 0, 0);
+                engineOn = false;
                 gameOver = false;
-                document.body.removeChild(document.querySelector('div'));
+                hasStarted = false;
+                score = 0;
+                scoreElement.innerText = `Score: ${Math.floor(score)}`;
+                speedElement.innerText = `Speed: 0 blocks/s`;
+                startMessageElement.style.display = 'block';
+                document.body.removeChild(document.querySelector('#gameOver'));
             }
 
-            // Animation loop
+            // Animation loop with score counter
             function animate() {
                 requestAnimationFrame(animate);
+                const currentTime = performance.now();
+                const deltaTime = (currentTime - lastTime) / 1000;
+                if (!gameOver && hasStarted) {
+                    score += deltaTime;
+                    scoreElement.innerText = `Score: ${Math.floor(score)}`;
+                }
+                lastTime = currentTime;
+
                 updatePlane();
                 updateVehicles();
+                updateBoats();
                 updateClouds();
                 camera.position.copy(planeGroup.position)
                     .add(new THREE.Vector3(0, 0, -1).applyQuaternion(planeGroup.quaternion).multiplyScalar(-10))
