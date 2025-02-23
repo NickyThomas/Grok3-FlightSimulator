@@ -130,8 +130,16 @@
                 } else {
                     return new THREE.MeshBasicMaterial({ color: 0x87CEEB });
                 }
-            })
-        ]).then(([grassMaterial, sunMaterial, seaMaterial, skyMaterial]) => {
+            }),
+            // Load building textures
+            loadTexture('./assets/building-1.jpg').then((texture) => texture || new THREE.MeshLambertMaterial({ color: 0xaaaaaa })),
+            loadTexture('./assets/building-2.jpg').then((texture) => texture || new THREE.MeshLambertMaterial({ color: 0xbbbbbb })),
+            loadTexture('./assets/building-3.jpg').then((texture) => texture || new THREE.MeshLambertMaterial({ color: 0xcccccc })),
+            loadTexture('./assets/building-4.jpg').then((texture) => texture || new THREE.MeshLambertMaterial({ color: 0xdddddd })),
+            loadTexture('./assets/building-5.jpg').then((texture) => texture || new THREE.MeshLambertMaterial({ color: 0xeeeeee }))
+        ]).then(([grassMaterial, sunMaterial, seaMaterial, skyMaterial, buildingTexture1, buildingTexture2, buildingTexture3, buildingTexture4, buildingTexture5]) => {
+            const buildingTextures = [buildingTexture1, buildingTexture2, buildingTexture3, buildingTexture4, buildingTexture5];
+
             // Set background to sky texture or fallback color
             scene.background = skyMaterial.color || new THREE.Color(0x87CEEB);
 
@@ -233,7 +241,7 @@
                 }
             }
 
-            // Generate random buildings outside the runway and road areas
+            // Generate random buildings with textures
             const buildings = [];
             for (let i = 0; i < 300; i++) {
                 let x, z;
@@ -261,7 +269,12 @@
 
                 const height = Math.random() * 20 + 10;
                 const geometry = new THREE.BoxGeometry(Math.random() * 10 + 5, height, Math.random() * 10 + 5);
-                const material = new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff });
+                const randomTextureIndex = Math.floor(Math.random() * buildingTextures.length);
+                const material = buildingTextures[randomTextureIndex];
+                if (material.map) {
+                    material.map.wrapS = material.map.wrapT = THREE.RepeatWrapping;
+                    material.map.repeat.set(1, height / 10); // Scale texture based on height
+                }
                 const building = new THREE.Mesh(geometry, material);
                 building.position.set(x, height / 2, z);
                 building.castShadow = true;
@@ -351,83 +364,11 @@
                 clouds.push(cloudGroup);
             }
 
-            // Create the airplane
-            const planeGroup = new THREE.Group();
-            const planeParts = []; // For breakapart effect
-
-            const fuselageGeometry = new THREE.CylinderGeometry(0.5, 0.5, 10, 32);
-            const fuselageMaterial = new THREE.MeshLambertMaterial({ color: 0xC0C0C0 });
-            const fuselage = new THREE.Mesh(fuselageGeometry, fuselageMaterial);
-            fuselage.rotation.x = Math.PI / 2;
-            fuselage.castShadow = true;
-            planeGroup.add(fuselage);
-            planeParts.push(fuselage);
-
-            const wingGeometry = new THREE.BoxGeometry(15, 0.5, 2);
-            const wingMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
-            const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
-            leftWing.position.set(-7.5, 0, 0);
-            leftWing.castShadow = true;
-            planeGroup.add(leftWing);
-            planeParts.push(leftWing);
-            const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
-            rightWing.position.set(7.5, 0, 0);
-            rightWing.castShadow = true;
-            planeGroup.add(rightWing);
-            planeParts.push(rightWing);
-
-            const tailGeometry = new THREE.BoxGeometry(3, 0.5, 1);
-            const tail = new THREE.Mesh(tailGeometry, wingMaterial);
-            tail.position.set(0, 0, 5);
-            tail.castShadow = true;
-            planeGroup.add(tail);
-            planeParts.push(tail);
-
-            const engineGeometry = new THREE.CylinderGeometry(0.3, 0.3, 1, 32);
-            const engineMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 });
-            const leftEngine = new THREE.Mesh(engineGeometry, engineMaterial);
-            leftEngine.position.set(-1.5, 0, 0);
-            leftEngine.rotation.x = Math.PI / 2;
-            planeGroup.add(leftEngine);
-            planeParts.push(leftEngine);
-            const rightEngine = new THREE.Mesh(engineGeometry, engineMaterial);
-            rightEngine.position.set(1.5, 0, 0);
-            rightEngine.rotation.x = Math.PI / 2;
-            planeGroup.add(rightEngine);
-            planeParts.push(rightEngine);
-
-            const cockpitGeometry = new THREE.SphereGeometry(0.5, 32, 32);
-            const cockpitMaterial = new THREE.MeshLambertMaterial({ color: 0x0000FF });
-            const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
-            cockpit.position.set(0, 0, -5);
-            planeGroup.add(cockpit);
-            planeParts.push(cockpit);
-
-            const gearGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-            const gearMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
-            const frontGear = new THREE.Mesh(gearGeometry, gearMaterial);
-            frontGear.position.set(0, -0.5, -4);
-            planeGroup.add(frontGear);
-            planeParts.push(frontGear);
-            const leftGear = new THREE.Mesh(gearGeometry, gearMaterial);
-            leftGear.position.set(-1.5, -0.5, 0);
-            planeGroup.add(leftGear);
-            planeParts.push(leftGear);
-            const rightGear = new THREE.Mesh(gearGeometry, gearMaterial);
-            rightGear.position.set(1.5, -0.5, 0);
-            planeGroup.add(rightGear);
-            planeParts.push(rightGear);
-
-            // Position the plane on the runway, facing negative z-direction
-            planeGroup.position.set(0, 0.5, -90);
-            planeGroup.rotation.y = Math.PI;
-            scene.add(planeGroup);
-
             // Flight mechanics constants
             const baseSpeed = 1;
             const g = -0.02;
             const pitchRate = 0.01;
-            const yawRate = 0.005; // Reduced for smoother turning
+            const yawRate = 0.005;
             let pitch = 0;
             let yaw = Math.PI;
             let engineOn = false;
@@ -461,7 +402,7 @@
 
             // Function to break apart the plane
             function breakApartPlane() {
-                planeGroup.children.forEach(part => {
+                planeParts.forEach(part => {
                     const randomVelocity = new THREE.Vector3(
                         (Math.random() - 0.5) * 2,
                         Math.random() * 2,
@@ -473,9 +414,14 @@
                         (Math.random() - 0.5) * 0.1,
                         (Math.random() - 0.5) * 0.1
                     );
+                    part.position.set(
+                        planeGroup.position.x + part.position.x,
+                        planeGroup.position.y + part.position.y,
+                        planeGroup.position.z + part.position.z
+                    );
                     scene.add(part);
                 });
-                scene.remove(planeGroup);
+                planeGroup.visible = false; // Hide the group but keep parts visible
             }
 
             // Update plane parts after crash
@@ -537,9 +483,8 @@
                 if (planeGroup.position.y <= 0.5) {
                     planeGroup.position.y = 0.5;
                     velocity.y = 0;
-                    // Check for high-speed ground impact
                     const speed = velocity.length();
-                    if (speed > 0.5 && !engineOn) { // Threshold for "high speed"
+                    if (speed > 0.5 && !engineOn) {
                         gameOver = true;
                         breakApartPlane();
                         displayGameOver();
@@ -560,7 +505,7 @@
                 // Update speed and altitude display
                 const speedValue = velocity.length();
                 speedElement.innerText = `Speed: ${speedValue.toFixed(2)} blocks/s`;
-                const altitudeValue = altitude - 0.5; // Blocks above ground level
+                const altitudeValue = altitude - 0.5;
                 altitudeElement.innerText = `Altitude: ${altitudeValue.toFixed(2)} blocks`;
             }
 
@@ -668,29 +613,30 @@
                 yaw = Math.PI;
                 planeGroup.rotation.y = Math.PI;
 
-                // Re-add plane parts to group if they were scattered
+                // Reattach plane parts to group
                 planeParts.forEach(part => {
                     if (!planeGroup.children.includes(part)) {
                         scene.remove(part);
                         planeGroup.add(part);
-                        part.position.set(part.positionInitial ? part.positionInitial : new THREE.Vector3(0, 0, 0));
-                        part.rotation.set(0, 0, 0);
-                        delete part.userData.velocity;
-                        delete part.userData.rotation;
                     }
-                });
-                // Reset initial positions for parts
-                fuselage.position.set(0, 0, 0);
-                leftWing.position.set(-7.5, 0, 0);
-                rightWing.position.set(7.5, 0, 0);
-                tail.position.set(0, 0, 5);
-                leftEngine.position.set(-1.5, 0, 0);
-                rightEngine.position.set(1.5, 0, 0);
-                cockpit.position.set(0, 0, -5);
-                frontGear.position.set(0, -0.5, -4);
-                leftGear.position.set(-1.5, -0.5, 0);
-                rightGear.position.set(1.5, -0.5, 0);
+                    // Reset positions explicitly
+                    if (part === fuselage) part.position.set(0, 0, 0);
+                    else if (part === leftWing) part.position.set(-7.5, 0, 0);
+                    else if (part === rightWing) part.position.set(7.5, 0, 0);
+                    else if (part === tail) part.position.set(0, 0, 5);
+                    else if (part === leftEngine) part.position.set(-1.5, 0, 0);
+                    else if (part === rightEngine) part.position.set(1.5, 0, 0);
+                    else if (part === cockpit) part.position.set(0, 0, -5);
+                    else if (part === frontGear) part.position.set(0, -0.5, -4);
+                    else if (part === leftGear) part.position.set(-1.5, -0.5, 0);
+                    else if (part === rightGear) part.position.set(1.5, -0.5, 0);
 
+                    part.rotation.set(0, 0, 0);
+                    delete part.userData.velocity;
+                    delete part.userData.rotation;
+                });
+
+                planeGroup.visible = true; // Ensure plane is visible again
                 velocity.set(0, 0, 0);
                 engineOn = false;
                 gameOver = false;
