@@ -81,6 +81,35 @@
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+        // Declare variables in outer scope
+        let planeGroup;
+        const planeParts = [];
+        let buildings = [];
+        let vehicles = [];
+        let boats = [];
+        let clouds = [];
+
+        // Flight mechanics variables
+        const baseSpeed = 1;
+        const g = -0.02;
+        const pitchRate = 0.01;
+        const yawRate = 0.005;
+        let pitch = 0;
+        let yaw = Math.PI;
+        let engineOn = false;
+        let velocity = new THREE.Vector3(0, 0, 0);
+        const keys = {};
+        let gameOver = false;
+        let score = 0;
+        let lastTime = performance.now();
+        let hasStarted = false;
+
+        // UI elements
+        const scoreElement = document.getElementById('score');
+        const speedElement = document.getElementById('speed');
+        const altitudeElement = document.getElementById('altitude');
+        const startMessageElement = document.getElementById('startMessage');
+
         // Texture loader with error handling
         const loader = new THREE.TextureLoader();
         const loadTexture = (path, fallbackColor) => {
@@ -131,7 +160,7 @@
                     return new THREE.MeshBasicMaterial({ color: 0x87CEEB });
                 }
             }),
-            // Load building textures
+            // Load building textures with updated names
             loadTexture('./assets/building-1.jpg').then((texture) => texture || new THREE.MeshLambertMaterial({ color: 0xaaaaaa })),
             loadTexture('./assets/building-2.jpg').then((texture) => texture || new THREE.MeshLambertMaterial({ color: 0xbbbbbb })),
             loadTexture('./assets/building-3.jpg').then((texture) => texture || new THREE.MeshLambertMaterial({ color: 0xcccccc })),
@@ -242,7 +271,6 @@
             }
 
             // Generate random buildings with textures
-            const buildings = [];
             for (let i = 0; i < 300; i++) {
                 let x, z;
                 let overlap;
@@ -273,7 +301,7 @@
                 const material = buildingTextures[randomTextureIndex];
                 if (material.map) {
                     material.map.wrapS = material.map.wrapT = THREE.RepeatWrapping;
-                    material.map.repeat.set(1, height / 10); // Scale texture based on height
+                    material.map.repeat.set(1, height / 10);
                 }
                 const building = new THREE.Mesh(geometry, material);
                 building.position.set(x, height / 2, z);
@@ -284,7 +312,6 @@
             }
 
             // Add moving vehicles on roads
-            const vehicles = [];
             for (let i = 0; i < 20; i++) {
                 const vehicle = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 1), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
                 const startStreet = streets[Math.floor(Math.random() * streets.length)];
@@ -306,7 +333,6 @@
             }
 
             // Add larger blocky boats and ships in the ocean
-            const boats = [];
             for (let i = 0; i < 10; i++) {
                 const boatGroup = new THREE.Group();
                 const hullGeometry = new THREE.BoxGeometry(10, 2, 20);
@@ -337,13 +363,6 @@
             }
 
             // Generate Minecraft-style clouds
-            const clouds = [];
-            const cloudPatterns = [
-                { offsets: [[0, 0], [1, 0], [0, 1]], size: 6 },
-                { offsets: [[0, 0], [0, 1], [0, 2]], size: 6 },
-                { offsets: [[0, 0], [1, 0], [1, 1], [0, 1]], size: 6 },
-                { offsets: [[0, 0], [1, 0], [2, 0], [1, 1]], size: 6 }
-            ];
             for (let i = 0; i < 50; i++) {
                 const pattern = cloudPatterns[Math.floor(Math.random() * cloudPatterns.length)];
                 const cloudGroup = new THREE.Group();
@@ -364,26 +383,76 @@
                 clouds.push(cloudGroup);
             }
 
-            // Flight mechanics constants
-            const baseSpeed = 1;
-            const g = -0.02;
-            const pitchRate = 0.01;
-            const yawRate = 0.005;
-            let pitch = 0;
-            let yaw = Math.PI;
-            let engineOn = false;
-            let velocity = new THREE.Vector3(0, 0, 0);
-            const keys = {};
-            let gameOver = false;
-            let score = 0;
-            let lastTime = performance.now();
-            let hasStarted = false;
+            // Create the airplane
+            planeGroup = new THREE.Group();
 
-            // UI elements
-            const scoreElement = document.getElementById('score');
-            const speedElement = document.getElementById('speed');
-            const altitudeElement = document.getElementById('altitude');
-            const startMessageElement = document.getElementById('startMessage');
+            const fuselageGeometry = new THREE.CylinderGeometry(0.5, 0.5, 10, 32);
+            const fuselageMaterial = new THREE.MeshLambertMaterial({ color: 0xC0C0C0 });
+            const fuselage = new THREE.Mesh(fuselageGeometry, fuselageMaterial);
+            fuselage.rotation.x = Math.PI / 2;
+            fuselage.castShadow = true;
+            planeGroup.add(fuselage);
+            planeParts.push(fuselage);
+
+            const wingGeometry = new THREE.BoxGeometry(15, 0.5, 2);
+            const wingMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
+            const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
+            leftWing.position.set(-7.5, 0, 0);
+            leftWing.castShadow = true;
+            planeGroup.add(leftWing);
+            planeParts.push(leftWing);
+            const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
+            rightWing.position.set(7.5, 0, 0);
+            rightWing.castShadow = true;
+            planeGroup.add(rightWing);
+            planeParts.push(rightWing);
+
+            const tailGeometry = new THREE.BoxGeometry(3, 0.5, 1);
+            const tail = new THREE.Mesh(tailGeometry, wingMaterial);
+            tail.position.set(0, 0, 5);
+            tail.castShadow = true;
+            planeGroup.add(tail);
+            planeParts.push(tail);
+
+            const engineGeometry = new THREE.CylinderGeometry(0.3, 0.3, 1, 32);
+            const engineMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 });
+            const leftEngine = new THREE.Mesh(engineGeometry, engineMaterial);
+            leftEngine.position.set(-1.5, 0, 0);
+            leftEngine.rotation.x = Math.PI / 2;
+            planeGroup.add(leftEngine);
+            planeParts.push(leftEngine);
+            const rightEngine = new THREE.Mesh(engineGeometry, engineMaterial);
+            rightEngine.position.set(1.5, 0, 0);
+            rightEngine.rotation.x = Math.PI / 2;
+            planeGroup.add(rightEngine);
+            planeParts.push(rightEngine);
+
+            const cockpitGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+            const cockpitMaterial = new THREE.MeshLambertMaterial({ color: 0x0000FF });
+            const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
+            cockpit.position.set(0, 0, -5);
+            planeGroup.add(cockpit);
+            planeParts.push(cockpit);
+
+            const gearGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+            const gearMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
+            const frontGear = new THREE.Mesh(gearGeometry, gearMaterial);
+            frontGear.position.set(0, -0.5, -4);
+            planeGroup.add(frontGear);
+            planeParts.push(frontGear);
+            const leftGear = new THREE.Mesh(gearGeometry, gearMaterial);
+            leftGear.position.set(-1.5, -0.5, 0);
+            planeGroup.add(leftGear);
+            planeParts.push(leftGear);
+            const rightGear = new THREE.Mesh(gearGeometry, gearMaterial);
+            rightGear.position.set(1.5, -0.5, 0);
+            planeGroup.add(rightGear);
+            planeParts.push(rightGear);
+
+            // Position the plane on the runway, facing negative z-direction
+            planeGroup.position.set(0, 0.5, -90);
+            planeGroup.rotation.y = Math.PI;
+            scene.add(planeGroup);
 
             // Keyboard event listeners
             window.addEventListener('keydown', (e) => {
@@ -421,7 +490,7 @@
                     );
                     scene.add(part);
                 });
-                planeGroup.visible = false; // Hide the group but keep parts visible
+                planeGroup.visible = false;
             }
 
             // Update plane parts after crash
@@ -604,50 +673,6 @@
                 gameOverText.id = 'gameOver';
                 gameOverText.innerText = `You have crashed!\nFinal Score: ${Math.floor(score)}\nPress Spacebar to start again.`;
                 document.body.appendChild(gameOverText);
-            }
-
-            // Reset game function
-            function resetGame() {
-                planeGroup.position.set(0, 0.5, -90);
-                pitch = 0;
-                yaw = Math.PI;
-                planeGroup.rotation.y = Math.PI;
-
-                // Reattach plane parts to group
-                planeParts.forEach(part => {
-                    if (!planeGroup.children.includes(part)) {
-                        scene.remove(part);
-                        planeGroup.add(part);
-                    }
-                    // Reset positions explicitly
-                    if (part === fuselage) part.position.set(0, 0, 0);
-                    else if (part === leftWing) part.position.set(-7.5, 0, 0);
-                    else if (part === rightWing) part.position.set(7.5, 0, 0);
-                    else if (part === tail) part.position.set(0, 0, 5);
-                    else if (part === leftEngine) part.position.set(-1.5, 0, 0);
-                    else if (part === rightEngine) part.position.set(1.5, 0, 0);
-                    else if (part === cockpit) part.position.set(0, 0, -5);
-                    else if (part === frontGear) part.position.set(0, -0.5, -4);
-                    else if (part === leftGear) part.position.set(-1.5, -0.5, 0);
-                    else if (part === rightGear) part.position.set(1.5, -0.5, 0);
-
-                    part.rotation.set(0, 0, 0);
-                    delete part.userData.velocity;
-                    delete part.userData.rotation;
-                });
-
-                planeGroup.visible = true; // Ensure plane is visible again
-                velocity.set(0, 0, 0);
-                engineOn = false;
-                gameOver = false;
-                hasStarted = false;
-                score = 0;
-                scoreElement.innerText = `Score: ${Math.floor(score)}`;
-                speedElement.innerText = `Speed: 0 blocks/s`;
-                altitudeElement.innerText = `Altitude: 0 blocks`;
-                startMessageElement.style.display = 'block';
-                const gameOverElement = document.querySelector('#gameOver');
-                if (gameOverElement) document.body.removeChild(gameOverElement);
             }
 
             // Animation loop with score counter
