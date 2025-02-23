@@ -25,89 +25,144 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
+        // Enable shadows
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
         // Set background color to blue for the sky
         scene.background = new THREE.Color(0x87CEEB); // Light blue
 
-        // Create the ground plane with streets and pavements
+        // Add directional light (sun)
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+        sunLight.position.set(100, 100, 100);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 500;
+        sunLight.shadow.camera.left = -100;
+        sunLight.shadow.camera.right = 100;
+        sunLight.shadow.camera.top = 100;
+        sunLight.shadow.camera.bottom = -100;
+        scene.add(sunLight);
+
+        // Create the ground plane
         const groundSize = 1000;
         const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
-        const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x228B22 }); // Green for grass
+        const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 }); // Green for grass
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2; // Rotate to lie flat on XZ plane
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
         scene.add(ground);
 
         // Add streets
         const streetWidth = 10;
-        const streetMaterial = new THREE.MeshBasicMaterial({ color: 0x808080 }); // Gray for streets
+        const streetMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 }); // Gray for streets
+        const streets = [];
         for (let i = -groundSize / 2; i <= groundSize / 2; i += 50) {
             // Horizontal streets
             const streetH = new THREE.Mesh(new THREE.PlaneGeometry(groundSize, streetWidth), streetMaterial);
             streetH.rotation.x = -Math.PI / 2;
             streetH.position.set(0, 0.01, i);
+            streetH.receiveShadow = true;
             scene.add(streetH);
+            streets.push(streetH);
             // Vertical streets
             const streetV = new THREE.Mesh(new THREE.PlaneGeometry(streetWidth, groundSize), streetMaterial);
             streetV.rotation.x = -Math.PI / 2;
             streetV.position.set(i, 0.01, 0);
+            streetV.receiveShadow = true;
             scene.add(streetV);
+            streets.push(streetV);
         }
 
-        // Add pavements along streets
-        const pavementWidth = 2;
-        const pavementMaterial = new THREE.MeshBasicMaterial({ color: 0xA9A9A9 }); // Light gray for pavements
+        // Add road markings (center lines)
+        const lineMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff }); // White
         for (let i = -groundSize / 2; i <= groundSize / 2; i += 50) {
-            // Pavements along horizontal streets
-            const pavementH1 = new THREE.Mesh(new THREE.PlaneGeometry(groundSize, pavementWidth), pavementMaterial);
-            pavementH1.rotation.x = -Math.PI / 2;
-            pavementH1.position.set(0, 0.02, i - streetWidth / 2 - pavementWidth / 2);
-            scene.add(pavementH1);
-            const pavementH2 = new THREE.Mesh(new THREE.PlaneGeometry(groundSize, pavementWidth), pavementMaterial);
-            pavementH2.rotation.x = -Math.PI / 2;
-            pavementH2.position.set(0, 0.02, i + streetWidth / 2 + pavementWidth / 2);
-            scene.add(pavementH2);
-            // Pavements along vertical streets
-            const pavementV1 = new THREE.Mesh(new THREE.PlaneGeometry(pavementWidth, groundSize), pavementMaterial);
-            pavementV1.rotation.x = -Math.PI / 2;
-            pavementV1.position.set(i - streetWidth / 2 - pavementWidth / 2, 0.02, 0);
-            scene.add(pavementV1);
-            const pavementV2 = new THREE.Mesh(new THREE.PlaneGeometry(pavementWidth, groundSize), pavementMaterial);
-            pavementV2.rotation.x = -Math.PI / 2;
-            pavementV2.position.set(i + streetWidth / 2 + pavementWidth / 2, 0.02, 0);
-            scene.add(pavementV2);
+            // Horizontal street center lines
+            for (let j = -groundSize / 2; j < groundSize / 2; j += 10) {
+                const line = new THREE.Mesh(new THREE.PlaneGeometry(5, 0.5), lineMaterial);
+                line.rotation.x = -Math.PI / 2;
+                line.position.set(j, 0.02, i);
+                scene.add(line);
+            }
+            // Vertical street center lines
+            for (let j = -groundSize / 2; j < groundSize / 2; j += 10) {
+                const line = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 5), lineMaterial);
+                line.rotation.x = -Math.PI / 2;
+                line.position.set(i, 0.02, j);
+                scene.add(line);
+            }
         }
 
         // Create a more realistic airplane model
-        // For simplicity, we'll use a combination of geometries to resemble a plane
         const planeGroup = new THREE.Group();
 
         // Fuselage
         const fuselageGeometry = new THREE.CylinderGeometry(0.5, 0.5, 10, 32);
-        const fuselageMaterial = new THREE.MeshBasicMaterial({ color: 0xC0C0C0 }); // Silver
+        const fuselageMaterial = new THREE.MeshLambertMaterial({ color: 0xC0C0C0 }); // Silver
         const fuselage = new THREE.Mesh(fuselageGeometry, fuselageMaterial);
         fuselage.rotation.z = Math.PI / 2;
+        fuselage.castShadow = true;
         planeGroup.add(fuselage);
 
         // Wings
         const wingGeometry = new THREE.BoxGeometry(15, 0.5, 2);
-        const wingMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFFFF }); // White
+        const wingMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF }); // White
         const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
         leftWing.position.set(-7.5, 0, 0);
+        leftWing.castShadow = true;
         planeGroup.add(leftWing);
         const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
         rightWing.position.set(7.5, 0, 0);
+        rightWing.castShadow = true;
         planeGroup.add(rightWing);
 
         // Tail
         const tailGeometry = new THREE.BoxGeometry(3, 0.5, 1);
         const tail = new THREE.Mesh(tailGeometry, wingMaterial);
         tail.position.set(0, 0, 4.5);
+        tail.castShadow = true;
         planeGroup.add(tail);
+
+        // Engines
+        const engineGeometry = new THREE.CylinderGeometry(0.3, 0.3, 1, 32);
+        const engineMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 });
+        const leftEngine = new THREE.Mesh(engineGeometry, engineMaterial);
+        leftEngine.position.set(-3, -0.5, 0);
+        leftEngine.rotation.z = Math.PI / 2;
+        planeGroup.add(leftEngine);
+        const rightEngine = new THREE.Mesh(engineGeometry, engineMaterial);
+        rightEngine.position.set(3, -0.5, 0);
+        rightEngine.rotation.z = Math.PI / 2;
+        planeGroup.add(rightEngine);
+
+        // Cockpit
+        const cockpitGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+        const cockpitMaterial = new THREE.MeshLambertMaterial({ color: 0x0000FF });
+        const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
+        cockpit.position.set(0, 0, -5);
+        planeGroup.add(cockpit);
+
+        // Landing Gear
+        const gearGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        const gearMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
+        const frontGear = new THREE.Mesh(gearGeometry, gearMaterial);
+        frontGear.position.set(0, -0.5, -4);
+        planeGroup.add(frontGear);
+        const leftGear = new THREE.Mesh(gearGeometry, gearMaterial);
+        leftGear.position.set(-1.5, -0.5, 0);
+        planeGroup.add(leftGear);
+        const rightGear = new THREE.Mesh(gearGeometry, gearMaterial);
+        rightGear.position.set(1.5, -0.5, 0);
+        planeGroup.add(rightGear);
 
         // Add the plane to the scene
         planeGroup.position.set(0, 0, 0); // Start on the airfield
         scene.add(planeGroup);
 
         // Generate random buildings around the airfield
+        const buildings = [];
         for (let i = 0; i < 100; i++) {
             let x, z;
             // Ensure buildings are outside the airfield area (-50 to 50 in x and z)
@@ -120,20 +175,30 @@
             const width = Math.random() * 10 + 5;   // Width between 5 and 15
             const depth = Math.random() * 10 + 5;   // Depth between 5 and 15
             const geometry = new THREE.BoxGeometry(width, height, depth);
-            const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff }); // Random color
+            const material = new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }); // Random color
             const building = new THREE.Mesh(geometry, material);
             building.position.set(x, height / 2, z); // Base on ground, centered vertically
+            building.castShadow = true;
+            building.receiveShadow = true;
             scene.add(building);
+            buildings.push(building);
         }
 
-        // Add ocean at the edges
-        const oceanSize = 2000;
-        const oceanGeometry = new THREE.PlaneGeometry(oceanSize, oceanSize);
-        const oceanMaterial = new THREE.MeshBasicMaterial({ color: 0x0000FF }); // Blue
-        const ocean = new THREE.Mesh(oceanGeometry, oceanMaterial);
-        ocean.rotation.x = -Math.PI / 2;
-        ocean.position.y = -0.1; // Slightly below ground level
-        scene.add(ocean);
+        // Add vehicles on roads
+        const vehicles = [];
+        for (let i = 0; i < 20; i++) {
+            const vehicleGeometry = new THREE.BoxGeometry(2, 1, 1);
+            const vehicleMaterial = new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff });
+            const vehicle = new THREE.Mesh(vehicleGeometry, vehicleMaterial);
+            vehicle.position.set(
+                (Math.random() - 0.5) * groundSize,
+                0.5,
+                (Math.random() - 0.5) * groundSize
+            );
+            vehicle.castShadow = true;
+            scene.add(vehicle);
+            vehicles.push(vehicle);
+        }
 
         // Define constants for flight mechanics
         const speed = 1;        // Forward speed per frame
@@ -145,10 +210,15 @@
         let pitch = 0;          // Pitch angle in radians
         let yaw = 0;            // Yaw angle in radians
         const keys = {};        // Object to track key states
+        let gameOver = false;
 
         // Set up keyboard event listeners
         window.addEventListener('keydown', (e) => {
-            keys[e.key] = true;
+            if (gameOver && e.key === ' ') {
+                resetGame();
+            } else {
+                keys[e.key] = true;
+            }
         });
         window.addEventListener('keyup', (e) => {
             keys[e.key] = false;
@@ -156,6 +226,8 @@
 
         // Function to update the plane's position and orientation
         function updatePlane() {
+            if (gameOver) return;
+
             // Adjust pitch and yaw based on key presses
             if (keys['ArrowUp']) pitch += pitchRate;
             if (keys['ArrowDown']) pitch -= pitchRate;
@@ -181,6 +253,41 @@
             if (planeGroup.position.y < 0) {
                 planeGroup.position.y = 0;
             }
+
+            // Update plane bounding box
+            planeBoundingBox = new THREE.Box3().setFromObject(planeGroup);
+
+            // Check for collisions with buildings
+            for (const building of buildings) {
+                const buildingBoundingBox = new THREE.Box3().setFromObject(building);
+                if (planeBoundingBox.intersectsBox(buildingBoundingBox)) {
+                    gameOver = true;
+                    displayGameOver();
+                    break;
+                }
+            }
+        }
+
+        // Function to display game over screen
+        function displayGameOver() {
+            const gameOverText = document.createElement('div');
+            gameOverText.style.position = 'absolute';
+            gameOverText.style.top = '50%';
+            gameOverText.style.left = '50%';
+            gameOverText.style.transform = 'translate(-50%, -50%)';
+            gameOverText.style.fontSize = '48px';
+            gameOverText.style.color = 'red';
+            gameOverText.innerText = 'You have crashed!\nPress Spacebar to start again.';
+            document.body.appendChild(gameOverText);
+        }
+
+        // Function to reset the game
+        function resetGame() {
+            planeGroup.position.set(0, 0, 0);
+            pitch = 0;
+            yaw = 0;
+            gameOver = false;
+            document.body.removeChild(document.querySelector('div'));
         }
 
         // Animation loop
@@ -189,6 +296,12 @@
 
             // Update plane state
             updatePlane();
+
+            // Update vehicles (simple movement)
+            vehicles.forEach(vehicle => {
+                vehicle.position.x += 0.1;
+                if (vehicle.position.x > groundSize / 2) vehicle.position.x = -groundSize / 2;
+            });
 
             // Update camera to follow the plane
             const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(planeGroup.quaternion);
