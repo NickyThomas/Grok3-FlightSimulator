@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Simulator</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        // Set up the canvas
+        const canvas = document.getElementById('gameCanvas');
+        canvas.width = 800;
+        canvas.height = 600;
+        const ctx = canvas.getContext('2d');
+
+        // Plane object with position and velocity
+        let plane = {
+            x: 0,    // Start at the center of the airfield
+            y: 0,    // Start on the ground
+            vx: 0,   // Horizontal velocity
+            vy: 0    // Vertical velocity
+        };
+
+        // Game constants
+        const g = -0.1;        // Gravity (negative because y increases upwards)
+        const lift_force = 0.2; // Lift applied when pressing up/down
+        const thrust = 0.1;     // Thrust applied when pressing left/right
+
+        // Generate buildings
+        let buildings = [];
+        const min_x = -10000;  // World left boundary
+        const max_x = 10000;   // World right boundary
+        let x = min_x;
+
+        // Generate buildings from min_x to -500 (left of airfield)
+        while (x < -500) {
+            const width = 20 + Math.random() * 80; // Random width between 20 and 100
+            const height = 50 + Math.random() * 150; // Random height between 50 and 200
+            const color = `rgb(${Math.random()*255},${Math.random()*255},${Math.random()*255})`;
+            buildings.push({x, width, height, color});
+            x += width + 50 + Math.random() * 100; // Move x by width plus random gap
+        }
+
+        // Skip the airfield (-500 to 500), then continue from 500 to max_x
+        x = 500;
+        while (x < max_x) {
+            const width = 20 + Math.random() * 80;
+            const height = 50 + Math.random() * 150;
+            const color = `rgb(${Math.random()*255},${Math.random()*255},${Math.random()*255})`;
+            buildings.push({x, width, height, color});
+            x += width + 50 + Math.random() * 100;
+        }
+
+        // Keyboard input handling
+        let keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        // Render function
+        function render() {
+            // Draw sky (background)
+            ctx.fillStyle = 'lightblue';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw runway if in view
+            const runway_start = -500;
+            const runway_end = 500;
+            const screen_runway_start = canvas.width / 2 + (runway_start - plane.x);
+            const screen_runway_end = canvas.width / 2 + (runway_end - plane.x);
+            if (screen_runway_start < canvas.width && screen_runway_end > 0) {
+                ctx.fillStyle = 'gray';
+                // Draw runway as a 5-pixel high rectangle at the bottom
+                ctx.fillRect(
+                    Math.max(0, screen_runway_start),
+                    canvas.height - 5,
+                    Math.min(canvas.width, screen_runway_end) - Math.max(0, screen_runway_start),
+                    5
+                );
+            }
+
+            // Draw buildings within view
+            buildings.forEach(building => {
+                const screen_x = canvas.width / 2 + (building.x - plane.x);
+                const screen_y = canvas.height - building.height; // Bottom is at canvas.height
+                // Only draw if building is on screen
+                if (screen_x + building.width > 0 && screen_x < canvas.width) {
+                    ctx.fillStyle = building.color;
+                    ctx.fillRect(screen_x, screen_y, building.width, building.height);
+                }
+            });
+
+            // Draw plane (red triangle) at center horizontally
+            const plane_screen_x = canvas.width / 2;
+            const plane_screen_y = canvas.height - plane.y; // y=0 at bottom
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.moveTo(plane_screen_x, plane_screen_y);
+            ctx.lineTo(plane_screen_x + 20, plane_screen_y);
+            ctx.lineTo(plane_screen_x + 10, plane_screen_y - 10);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // Update function (game loop)
+        function update() {
+            // Handle input
+            if (keys['ArrowRight']) {
+                plane.vx += thrust;
+            }
+            if (keys['ArrowLeft']) {
+                plane.vx -= thrust;
+            }
+            if (keys['ArrowUp']) {
+                plane.vy += lift_force;
+            }
+            if (keys['ArrowDown']) {
+                plane.vy -= lift_force;
+            }
+
+            // Apply gravity
+            plane.vy += g;
+
+            // Update position
+            plane.x += plane.vx;
+            plane.y += plane.vy;
+
+            // Prevent plane from going below ground
+            if (plane.y < 0) {
+                plane.y = 0;
+                plane.vy = 0; // Stop vertical movement when on ground
+            }
+
+            // Render the scene
+            render();
+
+            // Continue the loop
+            requestAnimationFrame(update);
+        }
+
+        // Start the game
+        update();
+    </script>
+</body>
+</html>
