@@ -13,14 +13,9 @@
     <!-- Include Three.js library via CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        // Initialize the Three.js scene, camera, and renderer
+        // Initialize scene, camera, and renderer
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(
-            75, // Field of view
-            window.innerWidth / window.innerHeight, // Aspect ratio
-            0.1, // Near clipping plane
-            1000 // Far clipping plane
-        );
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer();
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
@@ -28,11 +23,9 @@
         // Enable shadows
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        scene.background = new THREE.Color(0x87CEEB); // Light blue sky
 
-        // Set background color to blue for the sky
-        scene.background = new THREE.Color(0x87CEEB); // Light blue
-
-        // Add directional light (sun)
+        // Add sunlight
         const sunLight = new THREE.DirectionalLight(0xffffff, 1);
         sunLight.position.set(100, 100, 100);
         sunLight.castShadow = true;
@@ -46,10 +39,10 @@
         sunLight.shadow.camera.bottom = -100;
         scene.add(sunLight);
 
-        // Create the ground plane
+        // Create ground
         const groundSize = 1000;
         const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
-        const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 }); // Green for grass
+        const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 }); // Green grass
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
         ground.receiveShadow = true;
@@ -57,49 +50,28 @@
 
         // Add streets
         const streetWidth = 10;
-        const streetMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 }); // Gray for streets
+        const streetMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 }); // Gray roads
         const streets = [];
         for (let i = -groundSize / 2; i <= groundSize / 2; i += 50) {
-            // Horizontal streets
             const streetH = new THREE.Mesh(new THREE.PlaneGeometry(groundSize, streetWidth), streetMaterial);
             streetH.rotation.x = -Math.PI / 2;
             streetH.position.set(0, 0.01, i);
             streetH.receiveShadow = true;
             scene.add(streetH);
-            streets.push(streetH);
-            // Vertical streets
+            streets.push({ type: 'horizontal', z: i });
             const streetV = new THREE.Mesh(new THREE.PlaneGeometry(streetWidth, groundSize), streetMaterial);
             streetV.rotation.x = -Math.PI / 2;
             streetV.position.set(i, 0.01, 0);
             streetV.receiveShadow = true;
             scene.add(streetV);
-            streets.push(streetV);
+            streets.push({ type: 'vertical', x: i });
         }
 
-        // Add road markings (center lines)
-        const lineMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff }); // White
-        for (let i = -groundSize / 2; i <= groundSize / 2; i += 50) {
-            // Horizontal street center lines
-            for (let j = -groundSize / 2; j < groundSize / 2; j += 10) {
-                const line = new THREE.Mesh(new THREE.PlaneGeometry(5, 0.5), lineMaterial);
-                line.rotation.x = -Math.PI / 2;
-                line.position.set(j, 0.02, i);
-                scene.add(line);
-            }
-            // Vertical street center lines
-            for (let j = -groundSize / 2; j < groundSize / 2; j += 10) {
-                const line = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 5), lineMaterial);
-                line.rotation.x = -Math.PI / 2;
-                line.position.set(i, 0.02, j);
-                scene.add(line);
-            }
-        }
-
-        // Create a more realistic airplane model
+        // Create realistic airplane
         const planeGroup = new THREE.Group();
 
         // Fuselage
-        const fuselageGeometry = new THREE.CylinderGeometry(0.5, 0.5, 10, 32);
+        const fuselageGeometry = new THREE.CylinderGeometry(0.3, 0.5, 12, 32);
         const fuselageMaterial = new THREE.MeshLambertMaterial({ color: 0xC0C0C0 }); // Silver
         const fuselage = new THREE.Mesh(fuselageGeometry, fuselageMaterial);
         fuselage.rotation.z = Math.PI / 2;
@@ -107,26 +79,31 @@
         planeGroup.add(fuselage);
 
         // Wings
-        const wingGeometry = new THREE.BoxGeometry(15, 0.5, 2);
+        const wingGeometry = new THREE.BoxGeometry(20, 0.5, 3);
         const wingMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF }); // White
         const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
-        leftWing.position.set(-7.5, 0, 0);
+        leftWing.position.set(-10, 0, 0);
         leftWing.castShadow = true;
         planeGroup.add(leftWing);
         const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
-        rightWing.position.set(7.5, 0, 0);
+        rightWing.position.set(10, 0, 0);
         rightWing.castShadow = true;
         planeGroup.add(rightWing);
 
-        // Tail
-        const tailGeometry = new THREE.BoxGeometry(3, 0.5, 1);
-        const tail = new THREE.Mesh(tailGeometry, wingMaterial);
-        tail.position.set(0, 0, 4.5);
-        tail.castShadow = true;
-        planeGroup.add(tail);
+        // Tail Section
+        const tailVerticalGeometry = new THREE.BoxGeometry(0.5, 3, 1);
+        const tailVertical = new THREE.Mesh(tailVerticalGeometry, wingMaterial);
+        tailVertical.position.set(0, 1.5, 5.5);
+        tailVertical.castShadow = true;
+        planeGroup.add(tailVertical);
+        const tailHorizontalGeometry = new THREE.BoxGeometry(5, 0.5, 1);
+        const tailHorizontal = new THREE.Mesh(tailHorizontalGeometry, wingMaterial);
+        tailHorizontal.position.set(0, 0, 5.5);
+        tailHorizontal.castShadow = true;
+        planeGroup.add(tailHorizontal);
 
         // Engines
-        const engineGeometry = new THREE.CylinderGeometry(0.3, 0.3, 1, 32);
+        const engineGeometry = new THREE.CylinderGeometry(0.4, 0.4, 1.5, 32);
         const engineMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 });
         const leftEngine = new THREE.Mesh(engineGeometry, engineMaterial);
         leftEngine.position.set(-3, -0.5, 0);
@@ -141,14 +118,14 @@
         const cockpitGeometry = new THREE.SphereGeometry(0.5, 32, 32);
         const cockpitMaterial = new THREE.MeshLambertMaterial({ color: 0x0000FF });
         const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
-        cockpit.position.set(0, 0, -5);
+        cockpit.position.set(0, 0, -6);
         planeGroup.add(cockpit);
 
         // Landing Gear
         const gearGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
         const gearMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
         const frontGear = new THREE.Mesh(gearGeometry, gearMaterial);
-        frontGear.position.set(0, -0.5, -4);
+        frontGear.position.set(0, -0.5, -5);
         planeGroup.add(frontGear);
         const leftGear = new THREE.Mesh(gearGeometry, gearMaterial);
         leftGear.position.set(-1.5, -0.5, 0);
@@ -157,107 +134,106 @@
         rightGear.position.set(1.5, -0.5, 0);
         planeGroup.add(rightGear);
 
-        // Add the plane to the scene
-        planeGroup.position.set(0, 0, 0); // Start on the airfield
+        planeGroup.position.set(0, 0, 0);
         scene.add(planeGroup);
 
-        // Generate random buildings around the airfield
+        // Add buildings
         const buildings = [];
         for (let i = 0; i < 100; i++) {
             let x, z;
-            // Ensure buildings are outside the airfield area (-50 to 50 in x and z)
             do {
                 x = (Math.random() - 0.5) * groundSize;
                 z = (Math.random() - 0.5) * groundSize;
             } while (Math.abs(x) < 50 && Math.abs(z) < 50);
-            
-            const height = Math.random() * 20 + 10; // Height between 10 and 30
-            const width = Math.random() * 10 + 5;   // Width between 5 and 15
-            const depth = Math.random() * 10 + 5;   // Depth between 5 and 15
-            const geometry = new THREE.BoxGeometry(width, height, depth);
-            const material = new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }); // Random color
+            const height = Math.random() * 20 + 10;
+            const geometry = new THREE.BoxGeometry(Math.random() * 10 + 5, height, Math.random() * 10 + 5);
+            const material = new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff });
             const building = new THREE.Mesh(geometry, material);
-            building.position.set(x, height / 2, z); // Base on ground, centered vertically
+            building.position.set(x, height / 2, z);
             building.castShadow = true;
             building.receiveShadow = true;
             scene.add(building);
             buildings.push(building);
         }
 
-        // Add vehicles on roads
+        // Add parked cars
+        const parkedCars = [];
+        for (let i = -groundSize / 2; i <= groundSize / 2; i += 50) {
+            for (let j = -groundSize / 2; j < groundSize / 2; j += 20) {
+                const carH1 = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 1), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
+                carH1.position.set(j, 0.5, i - streetWidth / 2 - 1);
+                carH1.rotation.y = Math.PI / 2;
+                scene.add(carH1);
+                parkedCars.push(carH1);
+                const carH2 = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 1), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
+                carH2.position.set(j, 0.5, i + streetWidth / 2 + 1);
+                carH2.rotation.y = Math.PI / 2;
+                scene.add(carH2);
+                parkedCars.push(carH2);
+                const carV1 = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 1), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
+                carV1.position.set(i - streetWidth / 2 - 1, 0.5, j);
+                scene.add(carV1);
+                parkedCars.push(carV1);
+                const carV2 = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 1), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
+                carV2.position.set(i + streetWidth / 2 + 1, 0.5, j);
+                scene.add(carV2);
+                parkedCars.push(carV2);
+            }
+        }
+
+        // Add moving vehicles
         const vehicles = [];
         for (let i = 0; i < 20; i++) {
-            const vehicleGeometry = new THREE.BoxGeometry(2, 1, 1);
-            const vehicleMaterial = new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff });
-            const vehicle = new THREE.Mesh(vehicleGeometry, vehicleMaterial);
-            vehicle.position.set(
-                (Math.random() - 0.5) * groundSize,
-                0.5,
-                (Math.random() - 0.5) * groundSize
-            );
+            const vehicle = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 1), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
+            const startStreet = streets[Math.floor(Math.random() * streets.length)];
+            vehicle.position.y = 0.5;
             vehicle.castShadow = true;
+            if (startStreet.type === 'horizontal') {
+                vehicle.position.z = startStreet.z + (Math.random() > 0.5 ? 2 : -2);
+                vehicle.position.x = (Math.random() - 0.5) * groundSize;
+                vehicle.direction = Math.random() > 0.5 ? 'east' : 'west';
+                vehicle.rotation.y = Math.PI / 2;
+            } else {
+                vehicle.position.x = startStreet.x + (Math.random() > 0.5 ? 2 : -2);
+                vehicle.position.z = (Math.random() - 0.5) * groundSize;
+                vehicle.direction = Math.random() > 0.5 ? 'north' : 'south';
+            }
             scene.add(vehicle);
             vehicles.push(vehicle);
         }
 
-        // Define constants for flight mechanics
-        const speed = 1;        // Forward speed per frame
-        const g = -0.02;        // Gravity acceleration per frame
-        const pitchRate = 0.01; // Pitch change rate per frame
-        const yawRate = 0.01;   // Yaw change rate per frame
-
-        // Initialize variables
-        let pitch = 0;          // Pitch angle in radians
-        let yaw = 0;            // Yaw angle in radians
-        const keys = {};        // Object to track key states
+        // Flight mechanics
+        const speed = 1;
+        const g = -0.02;
+        const pitchRate = 0.01;
+        const yawRate = 0.01;
+        let pitch = 0;
+        let yaw = 0;
+        const keys = {};
         let gameOver = false;
 
-        // Set up keyboard event listeners
         window.addEventListener('keydown', (e) => {
-            if (gameOver && e.key === ' ') {
-                resetGame();
-            } else {
-                keys[e.key] = true;
-            }
+            if (gameOver && e.key === ' ') resetGame();
+            else keys[e.key] = true;
         });
-        window.addEventListener('keyup', (e) => {
-            keys[e.key] = false;
-        });
+        window.addEventListener('keyup', (e) => keys[e.key] = false);
 
-        // Function to update the plane's position and orientation
         function updatePlane() {
             if (gameOver) return;
-
-            // Adjust pitch and yaw based on key presses
             if (keys['ArrowUp']) pitch += pitchRate;
             if (keys['ArrowDown']) pitch -= pitchRate;
             if (keys['ArrowLeft']) yaw += yawRate;
             if (keys['ArrowRight']) yaw -= yawRate;
-
-            // Clamp pitch to prevent extreme angles (between -45° and 45°)
             pitch = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, pitch));
-
-            // Apply rotations to the plane
             planeGroup.rotation.x = pitch;
             planeGroup.rotation.y = yaw;
-
-            // Calculate the forward direction based on plane's orientation
             const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(planeGroup.quaternion);
-
-            // Update plane position with velocity
             const vel = forward.clone().multiplyScalar(speed);
-            vel.y += g; // Apply gravity
+            vel.y += g;
             planeGroup.position.add(vel);
+            if (planeGroup.position.y < 0) planeGroup.position.y = 0;
 
-            // Prevent the plane from going below ground level
-            if (planeGroup.position.y < 0) {
-                planeGroup.position.y = 0;
-            }
-
-            // Update plane bounding box
-            planeBoundingBox = new THREE.Box3().setFromObject(planeGroup);
-
-            // Check for collisions with buildings
+            const planeBoundingBox = new THREE.Box3().setFromObject(planeGroup);
             for (const building of buildings) {
                 const buildingBoundingBox = new THREE.Box3().setFromObject(building);
                 if (planeBoundingBox.intersectsBox(buildingBoundingBox)) {
@@ -268,7 +244,65 @@
             }
         }
 
-        // Function to display game over screen
+        function updateVehicles() {
+            vehicles.forEach(vehicle => {
+                const speed = 0.2;
+                let offset = 0;
+
+                // Check for parked cars ahead
+                parkedCars.forEach(car => {
+                    const distX = vehicle.position.x - car.position.x;
+                    const distZ = vehicle.position.z - car.position.z;
+                    const ahead = (vehicle.direction === 'east' && distX > 0 && distX < 10 && Math.abs(distZ) < 2) ||
+                                  (vehicle.direction === 'west' && distX < 0 && distX > -10 && Math.abs(distZ) < 2) ||
+                                  (vehicle.direction === 'north' && distZ > 0 && distZ < 10 && Math.abs(distX) < 2) ||
+                                  (vehicle.direction === 'south' && distZ < 0 && distZ > -10 && Math.abs(distX) < 2);
+                    if (ahead) offset = vehicle.direction === 'east' || vehicle.direction === 'west' ? -2 : 2;
+                });
+
+                // Move vehicle
+                if (vehicle.direction === 'east') vehicle.position.x += speed;
+                else if (vehicle.direction === 'west') vehicle.position.x -= speed;
+                else if (vehicle.direction === 'north') vehicle.position.z += speed;
+                else if (vehicle.direction === 'south') vehicle.position.z -= speed;
+
+                // Apply offset for parked cars
+                if (vehicle.direction === 'east' || vehicle.direction === 'west') vehicle.position.z += offset;
+                else vehicle.position.x += offset;
+
+                // Snap to nearest road and handle turns
+                const nearestX = Math.round(vehicle.position.x / 50) * 50;
+                const nearestZ = Math.round(vehicle.position.z / 50) * 50;
+                if ((vehicle.direction === 'east' || vehicle.direction === 'west') && Math.abs(vehicle.position.x - nearestX) < 5) {
+                    if (Math.random() < 0.1) {
+                        vehicle.direction = Math.random() < 0.5 ? 'north' : 'south';
+                        vehicle.rotation.y = 0;
+                        vehicle.position.x = nearestX + (vehicle.direction === 'north' ? 2 : -2);
+                    }
+                } else if ((vehicle.direction === 'north' || vehicle.direction === 'south') && Math.abs(vehicle.position.z - nearestZ) < 5) {
+                    if (Math.random() < 0.1) {
+                        vehicle.direction = Math.random() < 0.5 ? 'east' : 'west';
+                        vehicle.rotation.y = Math.PI / 2;
+                        vehicle.position.z = nearestZ + (vehicle.direction === 'east' ? 2 : -2);
+                    }
+                }
+
+                // Wrap around edges
+                if (vehicle.position.x > groundSize / 2) vehicle.position.x = -groundSize / 2;
+                if (vehicle.position.x < -groundSize / 2) vehicle.position.x = groundSize / 2;
+                if (vehicle.position.z > groundSize / 2) vehicle.position.z = -groundSize / 2;
+                if (vehicle.position.z < -groundSize / 2) vehicle.position.z = groundSize / 2;
+
+                // Return to lane after passing
+                if (offset !== 0) {
+                    const lanePos = vehicle.direction === 'east' ? nearestZ + 2 : vehicle.direction === 'west' ? nearestZ - 2 :
+                                    vehicle.direction === 'north' ? nearestX + 2 : nearestX - 2;
+                    const target = vehicle.direction === 'east' || vehicle.direction === 'west' ? 'z' : 'x';
+                    vehicle.position[target] += (lanePos - vehicle.position[target]) * 0.05;
+                }
+            });
+        }
+
         function displayGameOver() {
             const gameOverText = document.createElement('div');
             gameOverText.style.position = 'absolute';
@@ -281,7 +315,6 @@
             document.body.appendChild(gameOverText);
         }
 
-        // Function to reset the game
         function resetGame() {
             planeGroup.position.set(0, 0, 0);
             pitch = 0;
@@ -290,31 +323,17 @@
             document.body.removeChild(document.querySelector('div'));
         }
 
-        // Animation loop
         function animate() {
             requestAnimationFrame(animate);
-
-            // Update plane state
             updatePlane();
-
-            // Update vehicles (simple movement)
-            vehicles.forEach(vehicle => {
-                vehicle.position.x += 0.1;
-                if (vehicle.position.x > groundSize / 2) vehicle.position.x = -groundSize / 2;
-            });
-
-            // Update camera to follow the plane
-            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(planeGroup.quaternion);
+            updateVehicles();
             camera.position.copy(planeGroup.position)
-                .add(forward.clone().multiplyScalar(-10)) // 10 units behind
-                .add(new THREE.Vector3(0, 5, 0));         // 5 units above
-            camera.lookAt(planeGroup.position.clone().add(forward.multiplyScalar(10))); // Look 10 units ahead
-
-            // Render the scene
+                .add(new THREE.Vector3(0, 0, -1).applyQuaternion(planeGroup.quaternion).multiplyScalar(-10))
+                .add(new THREE.Vector3(0, 5, 0));
+            camera.lookAt(planeGroup.position.clone().add(new THREE.Vector3(0, 0, -1).applyQuaternion(planeGroup.quaternion).multiplyScalar(10)));
             renderer.render(scene, camera);
         }
 
-        // Start the animation loop
         animate();
     </script>
 </body>
